@@ -1,0 +1,11 @@
+"""
+Initialize the database with tables
+Run this script to create all database tables
+"""
+from app.models.database import init_db
+
+if __name__ == "__main__":
+    print("Initializing database...")
+    init_db()
+    print("Database initialized successfully!")
+
