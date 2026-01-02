@@ -9,7 +9,8 @@ import {
 } from '@mui/material';
 
 interface MultipleChoiceProps {
-  label: string;
+  id: string;
+  label?: string;
   options: string[];
   correct?: string[];
   required?: boolean;
@@ -19,6 +20,7 @@ interface MultipleChoiceProps {
 }
 
 const MultipleChoice: React.FC<MultipleChoiceProps> = ({
+  id,
   label,
   options,
   correct,
@@ -29,6 +31,7 @@ const MultipleChoice: React.FC<MultipleChoiceProps> = ({
 }) => {
   const [internalValue, setInternalValue] = useState<string[]>(defaultValueProp ?? []);
   const [status, setStatus] = useState<Record<string, 'pass' | 'fail'>>({});
+  const labelToUse = label ?? id;
 
   const value = controlledValue !== undefined ? controlledValue : internalValue;
 
@@ -65,7 +68,7 @@ const MultipleChoice: React.FC<MultipleChoiceProps> = ({
   return (
     <Box sx={{ mb: 2 }}>
       <FormControl component="fieldset" fullWidth>
-        <FormLabel component="legend">{label}</FormLabel>
+        <FormLabel component="legend">{labelToUse}</FormLabel>
         <FormGroup>
           {options.map((option) => (
             <FormControlLabel

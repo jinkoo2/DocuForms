@@ -6,17 +6,27 @@ interface Range {
   max: number;
 }
 
+type NumberValue =
+  | number
+  | {
+      value: number | null;
+      result?: 'pass' | 'warning' | 'fail' | null;
+      label?: string;
+    };
+
 interface NumberInputProps {
-  label: string;
+  id: string;
+  label?: string;
   required?: boolean;
   pass?: Range;
   warn?: Range;
   default?: number;
-  value?: number;
-  onChange?: (value: number) => void;
+  value?: NumberValue;
+  onChange?: (value: NumberValue) => void;
 }
 
 const NumberInput: React.FC<NumberInputProps> = ({
+  id,
   label,
   required = false,
   pass,
@@ -28,16 +38,26 @@ const NumberInput: React.FC<NumberInputProps> = ({
   const [internalValue, setInternalValue] = useState<number | ''>(
     defaultValueProp ?? ''
   );
-  const [status, setStatus] = useState<'pass' | 'warn' | 'fail' | null>(null);
+  const [status, setStatus] = useState<'pass' | 'warning' | 'fail' | null>(null);
+  const labelToUse = label ?? id;
 
-  const resolvedValue =
-    controlledValue !== undefined ? controlledValue : internalValue;
+  const extractNumber = (val: NumberValue | number | '' | null | undefined): number | '' => {
+    if (val === undefined || val === null) return '';
+    if (typeof val === 'string') return '';
+    if (typeof val === 'number') return Number.isNaN(val) ? '' : val;
+    if (typeof val === 'object') {
+      const num = val.value;
+      if (num === null || num === undefined) return '';
+      return Number.isNaN(num) ? '' : num;
+    }
+    return '';
+  };
+
+  const resolvedValue = extractNumber(
+    controlledValue !== undefined ? controlledValue : internalValue
+  );
   const valueToRender =
-    resolvedValue === undefined || resolvedValue === null
-      ? ''
-      : typeof resolvedValue === 'number' && Number.isNaN(resolvedValue)
-        ? ''
-        : resolvedValue;
+    resolvedValue === undefined || resolvedValue === null ? '' : resolvedValue;
   const isEmpty = valueToRender === '';
   const isErrorState = required && isEmpty;
 
@@ -72,21 +92,20 @@ const NumberInput: React.FC<NumberInputProps> = ({
     return { min, max };
   };
 
-  const validateValue = (val: number) => {
+  const getResultStatus = (val: number): 'pass' | 'warning' | 'fail' | null => {
     const passRange = normalizeRange(pass);
     const warnRange = normalizeRange(warn);
 
     if (Number.isNaN(val)) {
-      setStatus(null);
-      return;
+      return null;
     }
 
     if (passRange && val >= passRange.min && val <= passRange.max) {
-      setStatus('pass');
+      return 'pass';
     } else if (warnRange && val >= warnRange.min && val <= warnRange.max) {
-      setStatus('warn');
+      return 'warning';
     } else {
-      setStatus('fail');
+      return 'fail';
     }
   };
 
@@ -97,7 +116,7 @@ const NumberInput: React.FC<NumberInputProps> = ({
         setInternalValue('');
       }
       setStatus(null);
-      onChange?.(Number.NaN);
+      onChange?.({ value: null, result: null, label: labelToUse });
       return;
     }
 
@@ -108,22 +127,38 @@ const NumberInput: React.FC<NumberInputProps> = ({
         setInternalValue(numValue);
       }
 
-      validateValue(numValue);
-      onChange?.(numValue);
+      const computedStatus = getResultStatus(numValue);
+      setStatus(computedStatus);
+      onChange?.({
+        value: numValue,
+        result: computedStatus,
+        label: labelToUse,
+      });
     } else {
       if (controlledValue === undefined) {
         setInternalValue('');
       }
       setStatus(null);
-      onChange?.(Number.NaN);
+      onChange?.({ value: null, result: null, label: labelToUse });
     }
   };
+
+  // Sync status if we are controlled and status not derived from change
+  React.useEffect(() => {
+    if (controlledValue !== undefined) {
+      const num = extractNumber(controlledValue);
+      const computedStatus =
+        num === '' ? null : getResultStatus(typeof num === 'number' ? num : Number.NaN);
+      setStatus(computedStatus);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlledValue, pass, warn]);
 
   const getColor = () => {
     switch (status) {
       case 'pass':
         return 'success';
-      case 'warn':
+      case 'warning':
         return 'warning';
       case 'fail':
         return 'error';
@@ -134,7 +169,7 @@ const NumberInput: React.FC<NumberInputProps> = ({
 
   const getStatusChip = () => {
     if (!status) return null;
-    const color = status === 'pass' ? 'success' : status === 'warn' ? 'warning' : 'error';
+    const color = status === 'pass' ? 'success' : status === 'warning' ? 'warning' : 'error';
     return <Chip label={status} color={color} size="small" variant="outlined" />;
   };
 
@@ -142,7 +177,9 @@ const NumberInput: React.FC<NumberInputProps> = ({
     <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
       <TextField
         sx={{ flex: 1 }}
-        label={label}
+        id={id}
+        name={id}
+        label={labelToUse}
         type="number"
         value={valueToRender}
         onChange={handleChange}

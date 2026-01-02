@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { TextField, Box } from '@mui/material';
 
 interface TextInputProps {
-  label: string;
+  id: string;
+  label?: string;
   required?: boolean;
   multiline?: boolean;
   minRows?: number;
@@ -11,6 +12,7 @@ interface TextInputProps {
 }
 
 const TextInput: React.FC<TextInputProps> = ({
+  id,
   label,
   required = false,
   multiline = false,
@@ -19,6 +21,7 @@ const TextInput: React.FC<TextInputProps> = ({
   onChange,
 }) => {
   const [internalValue, setInternalValue] = useState('');
+  const labelToUse = label ?? id;
 
   const value = controlledValue !== undefined ? controlledValue : internalValue;
 
@@ -33,7 +36,9 @@ const TextInput: React.FC<TextInputProps> = ({
   return (
     <Box sx={{ mb: 2 }}>
       <TextField
-        label={label}
+        id={id}
+        name={id}
+        label={labelToUse}
         value={value}
         onChange={handleChange}
         required={required}

@@ -10,7 +10,8 @@ import {
 } from '@mui/material';
 
 interface DropdownProps {
-  label: string;
+  id: string;
+  label?: string;
   options: string[];
   correct?: string;
   required?: boolean;
@@ -20,6 +21,7 @@ interface DropdownProps {
 }
 
 const Dropdown: React.FC<DropdownProps> = ({
+  id,
   label,
   options,
   correct,
@@ -30,6 +32,7 @@ const Dropdown: React.FC<DropdownProps> = ({
 }) => {
   const [internalValue, setInternalValue] = useState(defaultValueProp ?? '');
   const [status, setStatus] = useState<'pass' | 'fail' | null>(null);
+  const labelToUse = label ?? id;
 
   const resolvedValue =
     controlledValue !== undefined ? controlledValue : internalValue;
@@ -87,13 +90,15 @@ const Dropdown: React.FC<DropdownProps> = ({
   return (
     <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
       <FormControl fullWidth error={isErrorState || isFailState} sx={{ flex: 1 }}>
-        <InputLabel color={isErrorState || isFailState ? 'error' : 'primary'}>{label}</InputLabel>
+        <InputLabel color={isErrorState || isFailState ? 'error' : 'primary'}>{labelToUse}</InputLabel>
         <Select
+          id={id}
+          name={id}
           value={valueToRender}
           onChange={handleChange}
           required={required}
           color={isErrorState || isFailState ? 'error' : getColor()}
-          label={label}
+          label={labelToUse}
         >
           {options.map((option) => (
             <MenuItem key={option} value={option}>

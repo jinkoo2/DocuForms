@@ -16,6 +16,9 @@ const MainLayout: React.FC = () => {
   const [isEditMode, setIsEditMode] = useState(false);
   const [selectedNode, setSelectedNode] = useState<number | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<number | null>(null);
+  const [answersByDoc, setAnswersByDoc] = useState<Record<number, Record<string, any>>>(
+    {}
+  );
   const [formAnswers, setFormAnswers] = useState<Record<string, any>>({});
   const [submitResult, setSubmitResult] = useState<
     | { status: 'success'; message: string }
@@ -267,6 +270,8 @@ const MainLayout: React.FC = () => {
   const handleDocumentSelect = (documentId: number | null) => {
     setSelectedDocument(documentId);
     setSelectedNode(null);
+    setFormAnswers(documentId ? answersByDoc[documentId] ?? {} : {}); // load per-doc answers or clear
+    setSubmitResult(null);
   };
 
   const handleNodeSelect = (nodeId: number | null) => {
@@ -274,6 +279,18 @@ const MainLayout: React.FC = () => {
     if (nodeId === null) return;
     setSelectedNode(nodeId);
     setSelectedDocument(null);
+    setFormAnswers({}); // clear answers when leaving a document
+    setSubmitResult(null);
+  };
+
+  const handleFormAnswerChange = (answers: Record<string, any>) => {
+    setFormAnswers(answers);
+    if (selectedDocument) {
+      setAnswersByDoc((prev) => ({
+        ...prev,
+        [selectedDocument]: answers,
+      }));
+    }
   };
 
   return (
@@ -338,7 +355,7 @@ const MainLayout: React.FC = () => {
               documentId={selectedDocument}
               isEditMode={isEditMode}
               formAnswers={formAnswers}
-              onFormAnswerChange={setFormAnswers}
+              onFormAnswerChange={handleFormAnswerChange}
               onContentUpdate={(val) => {
                 latestContentRef.current = val;
               }}

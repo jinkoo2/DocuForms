@@ -9,7 +9,8 @@ import {
 } from '@mui/material';
 
 interface RadioButtonsProps {
-  label: string;
+  id: string;
+  label?: string;
   options: string[];
   correct?: string;
   required?: boolean;
@@ -19,6 +20,7 @@ interface RadioButtonsProps {
 }
 
 const RadioButtons: React.FC<RadioButtonsProps> = ({
+  id,
   label,
   options,
   correct,
@@ -29,6 +31,7 @@ const RadioButtons: React.FC<RadioButtonsProps> = ({
 }) => {
   const [internalValue, setInternalValue] = useState(defaultValueProp ?? '');
   const [status, setStatus] = useState<'pass' | 'fail' | null>(null);
+  const labelToUse = label ?? id;
 
   const value = controlledValue !== undefined ? controlledValue : internalValue;
 
@@ -58,8 +61,8 @@ const RadioButtons: React.FC<RadioButtonsProps> = ({
   return (
     <Box sx={{ mb: 2 }}>
       <FormControl component="fieldset" fullWidth>
-        <FormLabel component="legend">{label}</FormLabel>
-        <RadioGroup value={value} onChange={handleChange}>
+        <FormLabel component="legend">{labelToUse}</FormLabel>
+        <RadioGroup value={value} onChange={handleChange} name={id}>
           {options.map((option) => (
             <FormControlLabel
               key={option}

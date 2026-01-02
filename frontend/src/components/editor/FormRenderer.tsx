@@ -179,8 +179,19 @@ const FormRenderer: React.FC<FormRendererProps> = ({
 
       if (Component) {
         const props = parseProps(propsString || '');
-        const fieldKey =
-          props.id || props.name || props.label || `${componentName}-${blockIndex}`;
+        const fieldKey = props.id;
+
+        if (!fieldKey) {
+          parts.push(
+            <div key={`missing-id-${componentName}-${blockIndex}`} style={{ color: 'red' }}>
+              Missing required id for component: {componentName}
+            </div>
+          );
+          blockIndex += 1;
+          continue;
+        }
+
+        const label = props.label || fieldKey;
         if (props.required) {
           requiredKeys.push(fieldKey);
         }
@@ -188,6 +199,8 @@ const FormRenderer: React.FC<FormRendererProps> = ({
           <Component
             key={`comp-${componentName}-${fieldKey}-${blockIndex}`}
             {...props}
+            id={fieldKey}
+            label={label}
             value={formAnswers[fieldKey]}
             values={formAnswers}
             fieldKey={fieldKey}

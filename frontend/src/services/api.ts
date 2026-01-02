@@ -56,6 +56,7 @@ export const submissionsApi = {
   getById: (id: number) => api.get(`/api/submissions/${id}`),
   create: (data: { document_id: number; answers: ControlAnswer[] }) =>
     api.post('/api/submissions', data),
+  delete: (id: number) => api.delete(`/api/submissions/${id}`),
 };
 
 // Users API

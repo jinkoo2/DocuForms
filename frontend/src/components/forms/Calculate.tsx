@@ -7,7 +7,8 @@ interface Range {
 }
 
 interface CalculateProps {
-  label: string;
+  id: string;
+  label?: string;
   precision?: number;
   expression?: string;
   pass?: Range;
@@ -20,6 +21,7 @@ interface CalculateProps {
 }
 
 const Calculate: React.FC<CalculateProps> = ({
+  id,
   label,
   precision = 2,
   expression,
@@ -31,7 +33,8 @@ const Calculate: React.FC<CalculateProps> = ({
   values = {},
 }) => {
   const [internalValue, setInternalValue] = useState<number | null>(null);
-  const [status, setStatus] = useState<'pass' | 'warn' | 'fail' | null>(null);
+  const [status, setStatus] = useState<'pass' | 'warning' | 'fail' | null>(null);
+  const labelToUse = label ?? id;
 
   const safeExpression = typeof expression === 'string' ? expression.trim() : '';
 
@@ -89,7 +92,7 @@ const Calculate: React.FC<CalculateProps> = ({
       return 'pass' as const;
     }
     if (warnRange && val >= warnRange.min && val <= warnRange.max) {
-      return 'warn' as const;
+      return 'warning' as const;
     }
     return 'fail' as const;
   };
@@ -146,7 +149,7 @@ const Calculate: React.FC<CalculateProps> = ({
     const color =
       status === 'pass'
         ? 'success'
-        : status === 'warn'
+        : status === 'warning'
           ? 'warning'
           : 'error';
     return <Chip label={status} color={color} size="small" variant="outlined" />;
@@ -169,7 +172,9 @@ const Calculate: React.FC<CalculateProps> = ({
   return (
     <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
       <TextField
-        label={label}
+        id={id}
+        name={id}
+        label={labelToUse}
         value={displayValue}
         InputProps={{ readOnly: true }}
         fullWidth
