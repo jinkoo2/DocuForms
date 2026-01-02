@@ -33,7 +33,7 @@ const TreeView: React.FC<TreeViewProps> = ({
   const [name, setName] = useState('');
   const [title, setTitle] = useState('');
 
-  const { data: nodes } = useQuery({
+  const { data: nodesRaw } = useQuery({
     queryKey: ['nodes'],
     queryFn: async () => {
       const response = await nodesApi.getAll();
@@ -56,6 +56,10 @@ const TreeView: React.FC<TreeViewProps> = ({
       setDialogOpen(false);
       setName('');
     },
+    onError: (err) => {
+      console.error('Failed to create node', err);
+      alert('Failed to create node. Please try again.');
+    },
   });
 
   const createDocumentMutation = useMutation({
@@ -72,6 +76,24 @@ const TreeView: React.FC<TreeViewProps> = ({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['nodes'] });
     },
+    onError: (err) => {
+      console.error('Failed to delete node', err);
+      alert('Failed to delete node. Please try again.');
+    },
+  });
+
+  const updateNodeMutation = useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) =>
+      nodesApi.update(id, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['nodes'] });
+      setDialogOpen(false);
+      setName('');
+    },
+    onError: (err) => {
+      console.error('Failed to update node', err);
+      alert('Failed to update node. Please try again.');
+    },
   });
 
   const deleteDocumentMutation = useMutation({
@@ -82,8 +104,10 @@ const TreeView: React.FC<TreeViewProps> = ({
   });
 
   const handleAddNode = (parentId: number | null) => {
+    // Root is represented as -1 in the tree; send null to backend for root
+    const normalizedParent = parentId && parentId > 0 ? parentId : null;
     setDialogType('node');
-    setParentId(parentId && parentId > 0 ? parentId : null);
+    setParentId(normalizedParent);
     setEditId(null);
     setName('');
     setDialogOpen(true);
@@ -132,10 +156,23 @@ const TreeView: React.FC<TreeViewProps> = ({
   const handleDialogSubmit = () => {
     if (dialogType === 'node') {
       if (editId) {
-        // Update logic would go here
-        setDialogOpen(false);
+        updateNodeMutation.mutate({ id: editId, name });
       } else {
-        createNodeMutation.mutate({ name, parent_id: parentId });
+        const normalizedParent = parentId && parentId > 0 ? parentId : null;
+        const payload = { name, parent_id: normalizedParent };
+        createNodeMutation.mutate(
+          payload,
+          {
+            onSuccess: () => {
+              // Expand the parent so the new child is visible
+              if (parentId !== null && parentId !== undefined) {
+                setExpanded((prev) =>
+                  Array.from(new Set([...prev, `node-${parentId}`]))
+                );
+              }
+            },
+          }
+        );
       }
     } else if (dialogType === 'document') {
       if (editId) {
@@ -162,40 +199,48 @@ const TreeView: React.FC<TreeViewProps> = ({
     return null;
   };
 
-  const buildTree = (nodes: TreeNode[], parentId: number | null = null) => {
-    return nodes
-      .filter((node) => node.parent_id === parentId)
-      .map((node) => {
-        const children = buildTree(nodes, node.id);
-        const nodeDocuments =
-          documents?.filter((doc: Document) => doc.node_id === node.id) || [];
+  // Normalize ids recursively (API already returns nested tree)
+  const normalizeTree = (node: any): TreeNode => ({
+    ...node,
+    id: Number(node.id),
+    parent_id: node.parent_id === null ? null : Number(node.parent_id),
+    children: Array.isArray(node.children)
+      ? node.children.map((c: any) => normalizeTree(c))
+      : [],
+    documents: Array.isArray(node.documents) ? node.documents : [],
+  });
 
-        return (
+  const nodes = nodesRaw ? nodesRaw.map((n: any) => normalizeTree(n)) : null;
+
+  const renderTree = (node: TreeNode) => {
+    const nodeDocuments =
+      documents?.filter((doc: Document) => doc.node_id === node.id) || [];
+
+    return (
+      <CustomTreeNode
+        key={`node-${node.id}`}
+        node={node}
+        nodeId={`node-${node.id}`}
+        isEditMode={isEditMode}
+        onAddNode={handleAddNode}
+        onAddDocument={handleAddDocument}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      >
+        {node.children?.map((child: TreeNode) => renderTree(child))}
+        {nodeDocuments.map((doc: Document) => (
           <CustomTreeNode
-            key={`node-${node.id}`}
-            node={node}
-            nodeId={`node-${node.id}`}
+            key={`doc-${doc.id}`}
+            node={doc}
+            nodeId={`doc-${doc.id}`}
+            isDocument
             isEditMode={isEditMode}
-            onAddNode={handleAddNode}
-            onAddDocument={handleAddDocument}
             onEdit={handleEdit}
             onDelete={handleDelete}
-          >
-            {children}
-            {nodeDocuments.map((doc: Document) => (
-              <CustomTreeNode
-                key={`doc-${doc.id}`}
-                node={doc}
-                nodeId={`doc-${doc.id}`}
-                isDocument
-                isEditMode={isEditMode}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-              />
-            ))}
-          </CustomTreeNode>
-        );
-      });
+          />
+        ))}
+      </CustomTreeNode>
+    );
   };
 
   if (!nodes) {
@@ -206,23 +251,26 @@ const TreeView: React.FC<TreeViewProps> = ({
     );
   }
 
-  const treeItems = buildTree(nodes);
-
-  const rootNode: TreeNode = {
-    id: -1,
-    name: '/',
-    parent_id: null,
-    created_at: '',
-    updated_at: '',
-    children: [],
-    documents: [],
-  };
+  const treeItems = nodes || [];
 
   return (
     <Box sx={{ p: 2 }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>
-        Forms
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+        <Typography variant="h6" sx={{ flex: 1 }}>
+          Forms
+        </Typography>
+        {isEditMode && (
+          <Button
+            size="small"
+            variant="contained"
+            onClick={() => handleAddNode(null)}
+            title="Add Top Node"
+            sx={{ minWidth: 36, px: 1 }}
+          >
+            +
+          </Button>
+        )}
+      </Box>
       <MuiTreeView
         expanded={expanded}
         onNodeToggle={(event: React.SyntheticEvent, nodeIds: string[]) => {
@@ -231,11 +279,6 @@ const TreeView: React.FC<TreeViewProps> = ({
         selected={selected}
         onNodeSelect={(event: React.SyntheticEvent, nodeId: string | null) => {
           setSelected(nodeId);
-          if (nodeId === 'node-root') {
-            onNodeSelect(null);
-            onDocumentSelect(null);
-            return;
-          }
           if (nodeId && nodeId.startsWith('node-')) {
             const id = parseInt(nodeId.replace('node-', ''));
             onNodeSelect(id);
@@ -247,17 +290,7 @@ const TreeView: React.FC<TreeViewProps> = ({
           }
         }}
       >
-        <CustomTreeNode
-          key="node-root"
-          node={rootNode}
-          nodeId="node-root"
-          isEditMode={isEditMode}
-          isRoot
-          onAddNode={handleAddNode}
-          onAddDocument={handleAddDocument}
-        >
-          {treeItems}
-        </CustomTreeNode>
+        {treeItems.map((node: TreeNode) => renderTree(node))}
       </MuiTreeView>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>

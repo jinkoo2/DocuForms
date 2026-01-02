@@ -1,9 +1,12 @@
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.models.database import FormSubmission, Document, get_db
 from app.schemas.submission import SubmissionCreate, SubmissionResponse
 from app.api.dependencies import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/submissions", tags=["submissions"])
 
@@ -56,6 +59,12 @@ def create_submission(
     current_user: dict = Depends(get_current_user),
 ):
     """Create a new form submission"""
+    logger.info(
+        "create_submission called with document_id=%s user_id=%s answers=%s",
+        submission.document_id,
+        current_user.get("id"),
+        submission.answers,
+    )
     # Verify document exists
     document = (
         db.query(Document).filter(Document.id == submission.document_id).first()
@@ -63,13 +72,33 @@ def create_submission(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    # Normalize answers to plain dicts to store JSON (Pydantic models aren't serializable)
+    normalized_answers = [
+        answer.model_dump() if hasattr(answer, "model_dump") else answer
+        for answer in submission.answers
+    ]
+
     db_submission = FormSubmission(
         document_id=submission.document_id,
         user_id=current_user["id"],
-        answers=submission.answers,
+        answers=normalized_answers,
     )
-    db.add(db_submission)
-    db.commit()
-    db.refresh(db_submission)
+    try:
+        db.add(db_submission)
+        db.commit()
+        db.refresh(db_submission)
+        logger.info(
+            "Submission saved to database with id=%s for user_id=%s",
+            db_submission.id,
+            current_user.get("id"),
+        )
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to save submission for document_id=%s user_id=%s",
+            submission.document_id,
+            current_user.get("id"),
+        )
+        raise
     return db_submission
 

@@ -22,7 +22,7 @@ export interface FormSubmission {
   id: number;
   document_id: number;
   user_id: string;
-  answers: Record<string, any>;
+  answers: ControlAnswer[];
   submitted_at: string;
 }
 
@@ -41,5 +41,12 @@ export interface FormFieldConfig {
   warn?: { min: number; max: number };
   options?: string[];
   correct?: string | string[];
+}
+
+export interface ControlAnswer {
+  id: string;
+  label: string;
+  value: any;
+  result: 'pass' | 'warning' | 'fail';
 }
 

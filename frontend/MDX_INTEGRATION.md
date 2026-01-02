@@ -16,13 +16,14 @@ The MDX integration uses a runtime parser that:
 
 ### TextInput
 ```mdx
-<TextInput label="Patient Name" required />
+<TextInput label="Patient Name" required={true} />
 ```
 
 ### NumberInput
 ```mdx
 <NumberInput
   label="Dose (Gy)"
+  required={true}
   pass={{min: 1.9, max: 2.1}}
   warn={{min: 1.8, max: 2.2}}
 />
@@ -57,12 +58,22 @@ The MDX integration uses a runtime parser that:
 
 ### DateInput
 ```mdx
-<DateInput label="Date" required />
+<DateInput label="Date" required={true} />
 ```
 
 ### TimeInput
 ```mdx
-<TimeInput label="Time" required />
+<TimeInput label="Time" required={true} />
+```
+
+### Calculate
+```mdx
+<Calculate
+  label="Total Dose"
+  sources={["Dose (Gy)", "Boost Dose"]}
+  op="add"           // add | sub | mul | div
+  precision={2}
+/>
 ```
 
 ## Example Form
@@ -72,10 +83,11 @@ The MDX integration uses a runtime parser that:
 
 ## Patient Info
 
-<TextInput label="Patient Name" required />
+<TextInput label="Patient Name" required={true} />
 
 <NumberInput
   label="Dose (Gy)"
+  required={true}
   pass={{min: 1.9, max: 2.1}}
   warn={{min: 1.8, max: 2.2}}
 />
@@ -84,6 +96,12 @@ The MDX integration uses a runtime parser that:
   label="Machine"
   options={["Linac A", "Linac B"]}
   correct="Linac A"
+/>
+
+<Calculate
+  label="Total Dose"
+  sources={["Dose (Gy)"]}
+  op="add"
 />
 
 ## Notes

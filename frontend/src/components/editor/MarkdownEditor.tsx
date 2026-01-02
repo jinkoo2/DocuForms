@@ -19,17 +19,19 @@ interface MarkdownEditorProps {
 }
 
 const MDX_EXAMPLES = {
-  TextInput: '<TextInput label="Patient Name" required />',
+  TextInput: '<TextInput label="Patient Name" required={true} />',
   NumberInput:
-    '<NumberInput label="Dose (Gy)" pass={{min: 1.9, max: 2.1}} warn={{min: 1.8, max: 2.2}} />',
+    '<NumberInput label="Dose (Gy)" required={true} pass={{min: 1.9, max: 2.1}} warn={{min: 1.8, max: 2.2}} />',
   Dropdown:
     '<Dropdown label="Machine" options={["Linac A", "Linac B"]} correct="Linac A" />',
   RadioButtons:
     '<RadioButtons label="Status" options={["Active", "Inactive"]} correct="Active" />',
   MultipleChoice:
     '<MultipleChoice label="Symptoms" options={["Fever", "Cough", "Headache"]} correct={["Fever", "Cough"]} />',
-  DateInput: '<DateInput label="Date" required />',
-  TimeInput: '<TimeInput label="Time" required />',
+  DateInput: '<DateInput label="Date" required={true} />',
+  TimeInput: '<TimeInput label="Time" required={true} />',
+  Calculate:
+    '<Calculate label="Total Dose" sources={["Dose (Gy)", "Boost Dose"]} op="add" precision={2} />',
 };
 
 const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
@@ -113,11 +115,13 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
 Enter your markdown content here. You can embed form controls using MDX syntax:
 
-<TextInput label="Patient Name" required />
+<TextInput label="Patient Name" required={true} />
 
-<NumberInput label="Dose (Gy)" pass={{min: 1.9, max: 2.1}} />
+<NumberInput label="Dose (Gy)" required={true} pass={{min: 1.9, max: 2.1}} />
 
 <Dropdown label="Machine" options={["Option 1", "Option 2"]} />
+
+<Calculate label="Total" sources={["Field A", "Field B"]} op="add" />
 
 See the Component Examples above for more syntax.`}
           sx={{

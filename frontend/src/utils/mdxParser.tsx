@@ -9,6 +9,37 @@ export function parseMDXSimple(
   content: string,
   componentProps?: Record<string, any>
 ): React.ReactElement {
+  const parsePropValue = (raw: string): any => {
+    const trimmed = raw.trim();
+
+    // Try JSON first (works for numbers/booleans/arrays/objects when valid)
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      // fall through
+    }
+
+    // Handle object-literal style values like {min: 1, max: 2}
+    if (trimmed.includes(':')) {
+      const candidate = trimmed.startsWith('{')
+        ? trimmed
+        : `{${trimmed}}`;
+      const normalized = candidate
+        .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":')
+        .replace(/'/g, '"');
+      try {
+        return JSON.parse(normalized);
+      } catch {
+        // fall through
+      }
+    }
+
+    if (trimmed === 'true') return true;
+    if (trimmed === 'false') return false;
+    if (!isNaN(Number(trimmed))) return Number(trimmed);
+
+    return raw;
+  };
   // Split content by MDX component patterns
   const parts: (string | React.ReactElement)[] = [];
   let lastIndex = 0;
@@ -29,37 +60,79 @@ export function parseMDXSimple(
       }
     }
 
-    // Parse props from string
+    // Parse props from string with a small hand-rolled parser to support
+    // bare props (boolean true) and balanced brace values (e.g. {{min:1,max:2}})
     const props: Record<string, any> = {};
-    const propPattern = /(\w+)={([^}]+)}|(\w+)="([^"]+)"/g;
-    let propMatch;
-    while ((propMatch = propPattern.exec(propsString)) !== null) {
-      const [, propName, propValueJson, propName2, propValueString] = propMatch;
-      const name = propName || propName2;
-      let value: any = propValueString || propValueJson;
+    let idx = 0;
+    const len = propsString.length;
 
-      // Try to parse JSON values
-      if (propValueJson) {
-        try {
-          value = JSON.parse(propValueJson);
-        } catch {
-          // Keep as string if not valid JSON
-        }
+    const skipSpaces = () => {
+      while (idx < len && /\s/.test(propsString[idx]!)) idx++;
+    };
+
+    const readName = () => {
+      const start = idx;
+      while (idx < len && /[A-Za-z0-9_]/.test(propsString[idx]!)) idx++;
+      return propsString.slice(start, idx);
+    };
+
+    const readQuoted = () => {
+      idx++; // skip opening "
+      let out = '';
+      while (idx < len && propsString[idx] !== '"') {
+        out += propsString[idx];
+        idx++;
       }
+      idx++; // skip closing "
+      return out;
+    };
 
-      // Handle special cases
-      if (value === 'true') value = true;
-      if (value === 'false') value = false;
-      if (!isNaN(Number(value))) value = Number(value);
+    const readBraced = () => {
+      idx++; // skip opening {
+      let out = '';
+      let depth = 1;
+      while (idx < len && depth > 0) {
+        const ch = propsString[idx]!;
+        if (ch === '{') depth++;
+        if (ch === '}') depth--;
+        if (depth > 0) out += ch;
+        idx++;
+      }
+      return out;
+    };
 
-      props[name] = value;
+    while (idx < len) {
+      skipSpaces();
+      if (idx >= len) break;
+      const name = readName();
+      if (!name) break;
+      skipSpaces();
+      if (propsString[idx] === '=') {
+        idx++; // skip =
+        skipSpaces();
+        const next = propsString[idx];
+        if (next === '"') {
+          const rawValue = readQuoted();
+          props[name] = parsePropValue(rawValue);
+        } else if (next === '{') {
+          const rawValue = readBraced();
+          props[name] = parsePropValue(rawValue);
+        } else {
+          // Fallback bare value
+          const rawValue = readName();
+          props[name] = parsePropValue(rawValue);
+        }
+      } else {
+        // Bare prop => boolean true
+        props[name] = true;
+      }
     }
 
     // Get component from registry
     const Component = (mdxComponents as any)[componentName];
     if (Component) {
-      // Merge with componentProps if provided
-      const finalProps = { ...props, ...(componentProps || {}) };
+      // Merge with componentProps if provided (MDX props take precedence)
+      const finalProps = { ...(componentProps || {}), ...props };
       parts.push(
         React.createElement(Component, {
           key: `component-${startIndex}`,

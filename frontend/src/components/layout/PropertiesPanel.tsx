@@ -7,12 +7,14 @@ interface PropertiesPanelProps {
   nodeId: number | null;
   documentId: number | null;
   isEditMode: boolean;
+  getCurrentContent?: () => string;
 }
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
   nodeId,
   documentId,
   isEditMode,
+  getCurrentContent,
 }) => {
   const queryClient = useQueryClient();
   const [nodeName, setNodeName] = useState('');
@@ -40,10 +42,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
     mutationFn: ({
       id,
       title,
+      content,
     }: {
       id: number;
       title?: string;
-    }) => documentsApi.update(id, { title }),
+      content?: string;
+    }) => documentsApi.update(id, { title, content }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['document', documentId] });
       queryClient.invalidateQueries({ queryKey: ['documents'] });
@@ -119,6 +123,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({
                 updateDocumentMutation.mutate({
                   id: documentId,
                   title: documentTitle.trim(),
+                  content: getCurrentContent?.(),
                 });
               }}
             >

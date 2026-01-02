@@ -4,6 +4,8 @@ import { TextField, Box } from '@mui/material';
 interface TextInputProps {
   label: string;
   required?: boolean;
+  multiline?: boolean;
+  minRows?: number;
   value?: string;
   onChange?: (value: string) => void;
 }
@@ -11,6 +13,8 @@ interface TextInputProps {
 const TextInput: React.FC<TextInputProps> = ({
   label,
   required = false,
+  multiline = false,
+  minRows,
   value: controlledValue,
   onChange,
 }) => {
@@ -33,6 +37,8 @@ const TextInput: React.FC<TextInputProps> = ({
         value={value}
         onChange={handleChange}
         required={required}
+        multiline={multiline}
+        minRows={minRows}
         fullWidth
         variant="outlined"
       />

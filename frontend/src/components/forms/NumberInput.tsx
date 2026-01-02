@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TextField, Box } from '@mui/material';
+import { TextField, Box, Chip } from '@mui/material';
 
 interface Range {
   min: number;
@@ -11,6 +11,7 @@ interface NumberInputProps {
   required?: boolean;
   pass?: Range;
   warn?: Range;
+  default?: number;
   value?: number;
   onChange?: (value: number) => void;
 }
@@ -20,19 +21,69 @@ const NumberInput: React.FC<NumberInputProps> = ({
   required = false,
   pass,
   warn,
+  default: defaultValueProp,
   value: controlledValue,
   onChange,
 }) => {
-  const [internalValue, setInternalValue] = useState<number | ''>('');
+  const [internalValue, setInternalValue] = useState<number | ''>(
+    defaultValueProp ?? ''
+  );
   const [status, setStatus] = useState<'pass' | 'warn' | 'fail' | null>(null);
 
-  const value =
+  const resolvedValue =
     controlledValue !== undefined ? controlledValue : internalValue;
+  const valueToRender =
+    resolvedValue === undefined || resolvedValue === null
+      ? ''
+      : typeof resolvedValue === 'number' && Number.isNaN(resolvedValue)
+        ? ''
+        : resolvedValue;
+  const isEmpty = valueToRender === '';
+  const isErrorState = required && isEmpty;
+
+  const normalizeRange = (range?: Range | string): Range | undefined => {
+    if (!range) return undefined;
+
+    // Accept stringified range values coming from loose MDX parsing like "{{min: 98, max: 102}}"
+    if (typeof range === 'string') {
+      let cleaned = range.trim();
+      if (cleaned.startsWith('{{') && cleaned.endsWith('}}')) {
+        cleaned = cleaned.slice(1, -1).trim();
+      }
+      if (cleaned.startsWith('{') && !cleaned.endsWith('}')) {
+        cleaned = `${cleaned}}`;
+      }
+      const normalized = cleaned
+        .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":')
+        .replace(/'/g, '"');
+      try {
+        const parsed = JSON.parse(
+          normalized.startsWith('{') ? normalized : `{${normalized}}`
+        );
+        return normalizeRange(parsed as Range);
+      } catch {
+        return undefined;
+      }
+    }
+
+    const min = Number((range as Range).min);
+    const max = Number((range as Range).max);
+    if (Number.isNaN(min) || Number.isNaN(max)) return undefined;
+    return { min, max };
+  };
 
   const validateValue = (val: number) => {
-    if (pass && val >= pass.min && val <= pass.max) {
+    const passRange = normalizeRange(pass);
+    const warnRange = normalizeRange(warn);
+
+    if (Number.isNaN(val)) {
+      setStatus(null);
+      return;
+    }
+
+    if (passRange && val >= passRange.min && val <= passRange.max) {
       setStatus('pass');
-    } else if (warn && val >= warn.min && val <= warn.max) {
+    } else if (warnRange && val >= warnRange.min && val <= warnRange.max) {
       setStatus('warn');
     } else {
       setStatus('fail');
@@ -40,11 +91,23 @@ const NumberInput: React.FC<NumberInputProps> = ({
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Allow full clear
+    if (e.target.value === '') {
+      if (controlledValue === undefined) {
+        setInternalValue('');
+      }
+      setStatus(null);
+      onChange?.(Number.NaN);
+      return;
+    }
+
     const numValue = parseFloat(e.target.value);
+
     if (!isNaN(numValue)) {
       if (controlledValue === undefined) {
         setInternalValue(numValue);
       }
+
       validateValue(numValue);
       onChange?.(numValue);
     } else {
@@ -52,6 +115,7 @@ const NumberInput: React.FC<NumberInputProps> = ({
         setInternalValue('');
       }
       setStatus(null);
+      onChange?.(Number.NaN);
     }
   };
 
@@ -68,18 +132,27 @@ const NumberInput: React.FC<NumberInputProps> = ({
     }
   };
 
+  const getStatusChip = () => {
+    if (!status) return null;
+    const color = status === 'pass' ? 'success' : status === 'warn' ? 'warning' : 'error';
+    return <Chip label={status} color={color} size="small" variant="outlined" />;
+  };
+
   return (
-    <Box sx={{ mb: 2 }}>
+    <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
       <TextField
+        sx={{ flex: 1 }}
         label={label}
         type="number"
-        value={value}
+        value={valueToRender}
         onChange={handleChange}
         required={required}
-        color={getColor()}
+        error={isErrorState}
+        color={isErrorState ? 'error' : getColor()}
         fullWidth
         variant="outlined"
       />
+      {getStatusChip()}
     </Box>
   );
 };

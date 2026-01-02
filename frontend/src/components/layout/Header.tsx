@@ -18,7 +18,10 @@ interface HeaderProps {
   onToggleEditMode: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ isEditMode, onToggleEditMode }) => {
+const Header: React.FC<HeaderProps> = ({
+  isEditMode,
+  onToggleEditMode,
+}) => {
   const { user, isAdmin, logout } = useAuth();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 

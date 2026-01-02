@@ -13,6 +13,7 @@ interface RadioButtonsProps {
   options: string[];
   correct?: string;
   required?: boolean;
+  default?: string;
   value?: string;
   onChange?: (value: string) => void;
 }
@@ -22,13 +23,27 @@ const RadioButtons: React.FC<RadioButtonsProps> = ({
   options,
   correct,
   required = false,
+  default: defaultValueProp,
   value: controlledValue,
   onChange,
 }) => {
-  const [internalValue, setInternalValue] = useState('');
+  const [internalValue, setInternalValue] = useState(defaultValueProp ?? '');
   const [status, setStatus] = useState<'pass' | 'fail' | null>(null);
 
   const value = controlledValue !== undefined ? controlledValue : internalValue;
+
+  // Evaluate initial/default or controlled value
+  React.useEffect(() => {
+    evaluateStatus(value);
+  }, [value, correct]);
+
+  const evaluateStatus = (val: string | undefined | null) => {
+    if (!val || correct === undefined) {
+      setStatus(null);
+      return;
+    }
+    setStatus(val === correct ? 'pass' : 'fail');
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
@@ -36,10 +51,7 @@ const RadioButtons: React.FC<RadioButtonsProps> = ({
       setInternalValue(newValue);
     }
 
-    if (correct !== undefined) {
-      setStatus(newValue === correct ? 'pass' : 'fail');
-    }
-
+    evaluateStatus(newValue);
     onChange?.(newValue);
   };
 
@@ -58,7 +70,9 @@ const RadioButtons: React.FC<RadioButtonsProps> = ({
                     correct !== undefined && value === option
                       ? status === 'pass'
                         ? 'success'
-                        : 'error'
+                        : status === 'fail'
+                          ? 'error'
+                          : 'primary'
                       : 'primary'
                   }
                 />

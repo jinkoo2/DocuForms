@@ -1,14 +1,7 @@
 import React from 'react';
-import { Box, Typography, Button } from '@mui/material';
-import SaveIcon from '@mui/icons-material/Save';
+import { Box, Typography } from '@mui/material';
 
-interface FooterProps {
-  onSubmit?: () => void;
-  isSubmitting?: boolean;
-  isEditMode?: boolean;
-}
-
-const Footer: React.FC<FooterProps> = ({ onSubmit, isSubmitting = false, isEditMode }) => {
+const Footer: React.FC = () => {
   return (
     <Box
       sx={{
@@ -24,17 +17,6 @@ const Footer: React.FC<FooterProps> = ({ onSubmit, isSubmitting = false, isEditM
       <Typography variant="body2" color="text.secondary">
         DocuForms v0.1.0
       </Typography>
-      {onSubmit && !isEditMode && (
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<SaveIcon />}
-          onClick={onSubmit}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? 'Submitting...' : 'Submit Form'}
-        </Button>
-      )}
     </Box>
   );
 };

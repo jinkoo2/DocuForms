@@ -6,6 +6,7 @@ import RadioButtons from '../forms/RadioButtons';
 import MultipleChoice from '../forms/MultipleChoice';
 import DateInput from '../forms/DateInput';
 import TimeInput from '../forms/TimeInput';
+import Calculate from '../forms/Calculate';
 
 /**
  * MDX Component Registry
@@ -19,6 +20,7 @@ export const mdxComponents = {
   MultipleChoice,
   DateInput,
   TimeInput,
+  Calculate,
   // Standard HTML elements
   h1: (props: any) => <h1 {...props} />,
   h2: (props: any) => <h2 {...props} />,

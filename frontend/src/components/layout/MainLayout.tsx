@@ -8,6 +8,8 @@ import Footer from './Footer';
 import TreeView from '../tree/TreeView';
 import ContentPanel from './ContentPanel';
 import PropertiesPanel from './PropertiesPanel';
+import { submissionsApi } from '../../services/api';
+import { ControlAnswer } from '../../types';
 
 const MainLayout: React.FC = () => {
   const { isAuthenticated, isLoading, login, error, clearError, isAdmin } = useAuth();
@@ -15,6 +17,12 @@ const MainLayout: React.FC = () => {
   const [selectedNode, setSelectedNode] = useState<number | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<number | null>(null);
   const [formAnswers, setFormAnswers] = useState<Record<string, any>>({});
+  const [submitResult, setSubmitResult] = useState<
+    | { status: 'success'; message: string }
+    | { status: 'error'; message: string }
+    | null
+  >(null);
+  const latestContentRef = useRef<string>('');
   // Custom resizable layout state (percentages)
   const [leftWidth, setLeftWidth] = useState(30);
   const [centerWidth, setCenterWidth] = useState(40);
@@ -184,11 +192,88 @@ const MainLayout: React.FC = () => {
     </Dialog>
   );
 
-  const handleSubmit = () => {
-    if (selectedDocument && Object.keys(formAnswers).length > 0) {
-      // Submit logic will be handled in ContentPanel
-      console.log('Submitting form:', formAnswers);
+  const buildControlAnswers = (): ControlAnswer[] => {
+    return Object.entries(formAnswers).map(([fieldId, rawValue]) => {
+      const value =
+        rawValue && typeof rawValue === 'object' && 'value' in rawValue
+          ? (rawValue as any).value
+          : rawValue;
+
+      const maybeResult =
+        rawValue && typeof rawValue === 'object' && 'result' in rawValue
+          ? (rawValue as any).result
+          : null;
+
+      const normalizedResult: ControlAnswer['result'] =
+        maybeResult === 'pass' || maybeResult === 'warning' || maybeResult === 'fail'
+          ? maybeResult
+          : 'pass';
+
+      const label =
+        rawValue && typeof rawValue === 'object' && 'label' in rawValue
+          ? String((rawValue as any).label)
+          : fieldId;
+
+      return {
+        id: fieldId,
+        label,
+        value,
+        result: normalizedResult,
+      };
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedDocument || Object.keys(formAnswers).length === 0) return;
+    try {
+      const answersPayload = buildControlAnswers();
+      // Log payload for debugging submissions
+      // Note: console.log is intentional for visibility during dev
+      // eslint-disable-next-line no-console
+      console.log('Submitting form payload', {
+        document_id: selectedDocument,
+        answers: answersPayload,
+      });
+      const res = await submissionsApi.create({
+        document_id: selectedDocument,
+        answers: answersPayload,
+      });
+      const submission = res.data;
+      setSubmitResult({
+        status: 'success',
+        message: `Submission successful (id ${submission.id}).`,
+      });
+    } catch (err: any) {
+      let detail =
+        err?.response?.data?.detail ||
+        err?.message ||
+        'Failed to submit. Please try again.';
+
+      if (Array.isArray(detail)) {
+        detail = detail
+          .map((d) => (d?.msg ? `${d.msg}` : JSON.stringify(d)))
+          .join('; ');
+      } else if (detail && typeof detail === 'object') {
+        detail = detail.detail || detail.message || JSON.stringify(detail);
+      }
+
+      setSubmitResult({
+        status: 'error',
+        message: typeof detail === 'string' ? detail : String(detail),
+      });
     }
+  };
+
+  const handleDocumentSelect = (documentId: number | null) => {
+    setSelectedDocument(documentId);
+    setSelectedNode(null);
+  };
+
+  const handleNodeSelect = (nodeId: number | null) => {
+    // Ignore null node selections (TreeView may emit after document select)
+    if (nodeId === null) return;
+    setSelectedNode(nodeId);
+    setSelectedDocument(null);
   };
 
   return (
@@ -220,8 +305,8 @@ const MainLayout: React.FC = () => {
             }}
           >
             <TreeView
-              onNodeSelect={setSelectedNode}
-              onDocumentSelect={setSelectedDocument}
+              onNodeSelect={handleNodeSelect}
+              onDocumentSelect={handleDocumentSelect}
               isEditMode={isEditMode}
               selectedNodeId={selectedNode}
               selectedDocumentId={selectedDocument}
@@ -254,6 +339,16 @@ const MainLayout: React.FC = () => {
               isEditMode={isEditMode}
               formAnswers={formAnswers}
               onFormAnswerChange={setFormAnswers}
+              onContentUpdate={(val) => {
+                latestContentRef.current = val;
+              }}
+              onSubmit={
+                selectedDocument && Object.keys(formAnswers).length > 0
+                  ? handleSubmit
+                  : undefined
+              }
+              submitResult={submitResult}
+              clearSubmitResult={() => setSubmitResult(null)}
             />
           </Box>
 
@@ -283,17 +378,11 @@ const MainLayout: React.FC = () => {
               nodeId={selectedNode}
               documentId={selectedDocument}
               isEditMode={isEditMode}
+              getCurrentContent={() => latestContentRef.current}
             />
           </Box>
         </Box>
-        <Footer
-          isEditMode={isEditMode}
-          onSubmit={
-            selectedDocument && Object.keys(formAnswers).length > 0
-              ? handleSubmit
-              : undefined
-          }
-        />
+        <Footer />
       </Box>
     </>
   );

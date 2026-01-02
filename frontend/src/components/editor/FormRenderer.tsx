@@ -8,71 +8,107 @@ interface FormRendererProps {
   content: string;
   formAnswers: Record<string, any>;
   onFormAnswerChange: (answers: Record<string, any>) => void;
+  onRequiredFieldsChange?: (required: string[]) => void;
 }
 
 /**
  * Parse props string from MDX component
  */
 function parseProps(propsString: string): Record<string, any> {
-  const props: Record<string, any> = {};
-  
-  // Match prop patterns: name="value" or name={value}
-  const propPattern = /(\w+)=(?:"([^"]*)"|{([^}]+)})/g;
-  let match;
-  
-  while ((match = propPattern.exec(propsString)) !== null) {
-    const [, name, stringValue, jsonValue] = match;
-    let value: any = stringValue !== undefined ? stringValue : jsonValue;
+  const parsePropValue = (raw: string): any => {
+    const trimmed = raw.trim();
 
-    // Try to parse JSON values
-    if (jsonValue !== undefined) {
+    // Try JSON first (works for numbers/booleans/arrays/objects when valid)
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      // fall through
+    }
+
+    // Handle object-literal style values like {min: 1, max: 2}
+    if (trimmed.includes(':')) {
+      const candidate = trimmed.startsWith('{') ? trimmed : `{${trimmed}}`;
+      const normalized = candidate
+        .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":')
+        .replace(/'/g, '"');
       try {
-        value = JSON.parse(jsonValue);
+        return JSON.parse(normalized);
       } catch {
-        // If not valid JSON, try to parse as array/object manually
-        if (jsonValue.startsWith('[') && jsonValue.endsWith(']')) {
-          try {
-            value = JSON.parse(jsonValue);
-          } catch {
-            // Parse simple array: ["a", "b"]
-            const items = jsonValue
-              .slice(1, -1)
-              .split(',')
-              .map((item) => item.trim().replace(/^["']|["']$/g, ''));
-            value = items;
-          }
-        } else if (jsonValue.startsWith('{') && jsonValue.endsWith('}')) {
-          try {
-            value = JSON.parse(jsonValue);
-          } catch {
-            // Parse simple object: {min: 1, max: 2}
-            const obj: Record<string, any> = {};
-            const pairs = jsonValue
-              .slice(1, -1)
-              .split(',')
-              .map((pair) => pair.trim());
-            pairs.forEach((pair) => {
-              const [key, val] = pair.split(':').map((s) => s.trim());
-              if (key && val) {
-                obj[key] = isNaN(Number(val)) ? val : Number(val);
-              }
-            });
-            value = obj;
-          }
-        }
+        // fall through
       }
     }
 
-    // Handle boolean strings
-    if (value === 'true') value = true;
-    if (value === 'false') value = false;
-    
-    // Handle numbers
-    if (typeof value === 'string' && !isNaN(Number(value)) && value !== '') {
-      value = Number(value);
-    }
+    if (trimmed === 'true') return true;
+    if (trimmed === 'false') return false;
+    if (!isNaN(Number(trimmed))) return Number(trimmed);
 
-    props[name] = value;
+    return raw;
+  };
+
+  const props: Record<string, any> = {};
+  let idx = 0;
+  const len = propsString.length;
+
+  const skipSpaces = () => {
+    while (idx < len && /\s/.test(propsString[idx]!)) idx++;
+  };
+
+  const readName = () => {
+    const start = idx;
+    while (idx < len && /[A-Za-z0-9_]/.test(propsString[idx]!)) idx++;
+    return propsString.slice(start, idx);
+  };
+
+  const readQuoted = () => {
+    idx++; // skip opening "
+    let out = '';
+    while (idx < len && propsString[idx] !== '"') {
+      out += propsString[idx];
+      idx++;
+    }
+    idx++; // skip closing "
+    return out;
+  };
+
+  const readBraced = () => {
+    idx++; // skip opening {
+    let out = '';
+    let depth = 1;
+    while (idx < len && depth > 0) {
+      const ch = propsString[idx]!;
+      if (ch === '{') depth++;
+      if (ch === '}') depth--;
+      if (depth > 0) out += ch;
+      idx++;
+    }
+    return out;
+  };
+
+  while (idx < len) {
+    skipSpaces();
+    if (idx >= len) break;
+    const name = readName();
+    if (!name) break;
+    skipSpaces();
+    if (propsString[idx] === '=') {
+      idx++; // skip =
+      skipSpaces();
+      const next = propsString[idx];
+      if (next === '"') {
+        const rawValue = readQuoted();
+        props[name] = parsePropValue(rawValue);
+      } else if (next === '{') {
+        const rawValue = readBraced();
+        props[name] = parsePropValue(rawValue);
+      } else {
+        // Fallback bare value
+        const rawValue = readName();
+        props[name] = parsePropValue(rawValue);
+      }
+    } else {
+      // Bare prop => boolean true
+      props[name] = true;
+    }
   }
 
   return props;
@@ -85,25 +121,43 @@ const FormRenderer: React.FC<FormRendererProps> = ({
   content,
   formAnswers,
   onFormAnswerChange,
+  onRequiredFieldsChange,
 }) => {
+  const latestAnswersRef = React.useRef<Record<string, any>>(formAnswers);
+
+  React.useEffect(() => {
+    latestAnswersRef.current = formAnswers;
+  }, [formAnswers]);
+
   const handleFieldChange = (fieldId: string, value: any) => {
-    onFormAnswerChange({
-      ...formAnswers,
-      [fieldId]: value,
-    });
+    const next = { ...latestAnswersRef.current, [fieldId]: value };
+    latestAnswersRef.current = next;
+    onFormAnswerChange(next);
   };
 
   const parts: React.ReactNode[] = [];
   const lines = content.split('\n');
   let currentMarkdown = '';
   let blockIndex = 0;
+  const requiredKeys: string[] = [];
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    let line = lines[i];
+
+    // Support multi-line component tags by buffering until we hit a ">"
+    if (line.trim().startsWith('<') && !line.includes('>')) {
+      let buffered = line;
+      while (i + 1 < lines.length && !lines[i].includes('>')) {
+        i += 1;
+        buffered += '\n' + lines[i];
+        if (lines[i].includes('>')) break;
+      }
+      line = buffered;
+    }
     
     // Check if line contains MDX component (self-closing or opening tag)
-    const selfClosingMatch = line.match(/<(\w+)([^>]*?)\s*\/>/);
-    const openingMatch = line.match(/<(\w+)([^>]*?)>/);
+    const selfClosingMatch = line.match(/<(\w+)([\s\S]*?)\s*\/>/);
+    const openingMatch = line.match(/<(\w+)([\s\S]*?)>/);
     
     if (selfClosingMatch || openingMatch) {
       const match = selfClosingMatch || openingMatch;
@@ -127,11 +181,16 @@ const FormRenderer: React.FC<FormRendererProps> = ({
         const props = parseProps(propsString || '');
         const fieldKey =
           props.id || props.name || props.label || `${componentName}-${blockIndex}`;
+        if (props.required) {
+          requiredKeys.push(fieldKey);
+        }
         parts.push(
           <Component
             key={`comp-${componentName}-${fieldKey}-${blockIndex}`}
             {...props}
             value={formAnswers[fieldKey]}
+            values={formAnswers}
+            fieldKey={fieldKey}
             onChange={(value: any) => handleFieldChange(fieldKey, value)}
           />
         );
@@ -159,6 +218,13 @@ const FormRenderer: React.FC<FormRendererProps> = ({
       </ReactMarkdown>
     );
   }
+
+  React.useEffect(() => {
+    if (onRequiredFieldsChange) {
+      onRequiredFieldsChange(requiredKeys);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [content, JSON.stringify(requiredKeys)]);
 
   return (
     <Box sx={{ p: 2 }}>

@@ -2,10 +2,11 @@
 
 ## Patient Info
 
-<TextInput label="Patient Name" required />
+<TextInput label="Patient Name" required={true} />
 
 <NumberInput
   label="Dose (Gy)"
+  required={true}
   pass={{min: 1.9, max: 2.1}}
   warn={{min: 1.8, max: 2.2}}
 />
@@ -28,9 +29,9 @@
   correct={["Fever", "Cough"]}
 />
 
-<DateInput label="Date" required />
+<DateInput label="Date" required={true} />
 
-<TimeInput label="Time" required />
+<TimeInput label="Time" required={true} />
 
 ## Notes
 

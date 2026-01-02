@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FormControl,
   FormLabel,
@@ -13,6 +13,7 @@ interface MultipleChoiceProps {
   options: string[];
   correct?: string[];
   required?: boolean;
+  default?: string[];
   value?: string[];
   onChange?: (value: string[]) => void;
 }
@@ -22,13 +23,30 @@ const MultipleChoice: React.FC<MultipleChoiceProps> = ({
   options,
   correct,
   required = false,
+  default: defaultValueProp,
   value: controlledValue,
   onChange,
 }) => {
-  const [internalValue, setInternalValue] = useState<string[]>([]);
+  const [internalValue, setInternalValue] = useState<string[]>(defaultValueProp ?? []);
   const [status, setStatus] = useState<Record<string, 'pass' | 'fail'>>({});
 
   const value = controlledValue !== undefined ? controlledValue : internalValue;
+
+  const evaluateStatus = (vals: string[]) => {
+    if (!correct) {
+      setStatus({});
+      return;
+    }
+    const next: Record<string, 'pass' | 'fail'> = {};
+    vals.forEach((v) => {
+      next[v] = correct.includes(v) ? 'pass' : 'fail';
+    });
+    setStatus(next);
+  };
+
+  useEffect(() => {
+    evaluateStatus(value);
+  }, [value, correct]);
 
   const handleChange = (option: string) => {
     const newValue = value.includes(option)
@@ -39,13 +57,7 @@ const MultipleChoice: React.FC<MultipleChoiceProps> = ({
       setInternalValue(newValue);
     }
 
-    if (correct !== undefined) {
-      const newStatus: Record<string, 'pass' | 'fail'> = {};
-      newValue.forEach((v) => {
-        newStatus[v] = correct.includes(v) ? 'pass' : 'fail';
-      });
-      setStatus(newStatus);
-    }
+    evaluateStatus(newValue);
 
     onChange?.(newValue);
   };

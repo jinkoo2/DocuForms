@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { ControlAnswer } from '../types';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -53,7 +54,7 @@ export const submissionsApi = {
     return api.get(url);
   },
   getById: (id: number) => api.get(`/api/submissions/${id}`),
-  create: (data: { document_id: number; answers: Record<string, any> }) =>
+  create: (data: { document_id: number; answers: ControlAnswer[] }) =>
     api.post('/api/submissions', data),
 };
 
