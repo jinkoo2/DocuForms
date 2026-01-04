@@ -18,6 +18,8 @@ interface CalculateProps {
   fieldKey?: string;
   // All form values passed from FormRenderer; used to read source fields
   values?: Record<string, any>;
+  chartHistory?: { submitted_at: string; value: number | null; result?: string | null }[];
+  onChartRequest?: (fieldId: string, label: string) => void;
 }
 
 const Calculate: React.FC<CalculateProps> = ({
@@ -31,6 +33,8 @@ const Calculate: React.FC<CalculateProps> = ({
   onChange,
   fieldKey,
   values = {},
+  chartHistory,
+  onChartRequest,
 }) => {
   const [internalValue, setInternalValue] = useState<number | null>(null);
   const [status, setStatus] = useState<'pass' | 'warning' | 'fail' | null>(null);
@@ -184,6 +188,14 @@ const Calculate: React.FC<CalculateProps> = ({
         placeholder={safeExpression || 'Enter expression'}
       />
       {getStatusChip()}
+      {onChartRequest && chartHistory && chartHistory.length > 0 && (
+        <Chip
+          label="View chart"
+          size="small"
+          variant="outlined"
+          onClick={() => onChartRequest(id, labelToUse)}
+        />
+      )}
     </Box>
   );
 };

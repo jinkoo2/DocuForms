@@ -9,6 +9,11 @@ interface FormRendererProps {
   formAnswers: Record<string, any>;
   onFormAnswerChange: (answers: Record<string, any>) => void;
   onRequiredFieldsChange?: (required: string[]) => void;
+  chartHistories?: Record<
+    string,
+    { submitted_at: string; value: number | null; result?: string | null }[]
+  >;
+  onChartRequest?: (fieldId: string, label: string) => void;
 }
 
 /**
@@ -122,6 +127,8 @@ const FormRenderer: React.FC<FormRendererProps> = ({
   formAnswers,
   onFormAnswerChange,
   onRequiredFieldsChange,
+  chartHistories,
+  onChartRequest,
 }) => {
   const latestAnswersRef = React.useRef<Record<string, any>>(formAnswers);
 
@@ -205,6 +212,8 @@ const FormRenderer: React.FC<FormRendererProps> = ({
             values={formAnswers}
             fieldKey={fieldKey}
             onChange={(value: any) => handleFieldChange(fieldKey, value)}
+            chartHistory={chartHistories ? chartHistories[fieldKey] : undefined}
+            onChartRequest={onChartRequest}
           />
         );
         blockIndex += 1;

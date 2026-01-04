@@ -23,6 +23,8 @@ interface NumberInputProps {
   default?: number;
   value?: NumberValue;
   onChange?: (value: NumberValue) => void;
+  chartHistory?: { submitted_at: string; value: number | null; result?: string | null }[];
+  onChartRequest?: (fieldId: string, label: string) => void;
 }
 
 const NumberInput: React.FC<NumberInputProps> = ({
@@ -34,6 +36,8 @@ const NumberInput: React.FC<NumberInputProps> = ({
   default: defaultValueProp,
   value: controlledValue,
   onChange,
+  chartHistory,
+  onChartRequest,
 }) => {
   const [internalValue, setInternalValue] = useState<number | ''>(
     defaultValueProp ?? ''
@@ -190,6 +194,14 @@ const NumberInput: React.FC<NumberInputProps> = ({
         variant="outlined"
       />
       {getStatusChip()}
+      {onChartRequest && chartHistory && chartHistory.length > 0 && (
+        <Chip
+          label="View chart"
+          size="small"
+          variant="outlined"
+          onClick={() => onChartRequest(id, labelToUse)}
+        />
+      )}
     </Box>
   );
 };

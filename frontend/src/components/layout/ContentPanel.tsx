@@ -28,6 +28,8 @@ import {
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DeleteIcon from '@mui/icons-material/Delete';
+import OpenInFullIcon from '@mui/icons-material/OpenInFull';
+import CloseFullscreenIcon from '@mui/icons-material/CloseFullscreen';
 import ReactMarkdown from 'react-markdown';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { documentsApi, submissionsApi } from '../../services/api';
@@ -63,6 +65,21 @@ const ContentPanel: React.FC<ContentPanelProps> = ({
   const [tabValue, setTabValue] = useState<'form' | 'submissions'>('form');
   const [requiredFields, setRequiredFields] = useState<string[]>([]);
   const [viewSubmission, setViewSubmission] = useState<FormSubmission | null>(null);
+  const [chartField, setChartField] = useState<{
+    id: string;
+    label: string;
+    history: { submitted_at: string; value: number | null; result?: string | null; user_id?: string }[];
+  } | null>(null);
+  const [chartTab, setChartTab] = useState<'table' | 'graph'>('table');
+  const [chartFullScreen, setChartFullScreen] = useState(false);
+  const [chartHover, setChartHover] = useState<{
+    x: number;
+    y: number;
+    submitted_at: string;
+    value: number;
+    result: string | null;
+    user_id?: string;
+  } | null>(null);
   const draftsRef = React.useRef<Record<number, string>>({});
   const prevDocumentIdRef = React.useRef<number | null>(null);
   const lastLoadedDocIdRef = React.useRef<number | null>(null);
@@ -330,6 +347,39 @@ const ContentPanel: React.FC<ContentPanelProps> = ({
     enabled: !!documentId && tabValue === 'submissions',
   });
 
+  const chartHistories = React.useMemo(() => {
+    if (!submissionsData) return {};
+    const map: Record<
+      string,
+      { submitted_at: string; value: number | null; result?: string | null; user_id?: string }[]
+    > = {};
+    submissionsData.forEach((sub) => {
+      if (Array.isArray(sub.answers)) {
+        sub.answers.forEach((ans: any) => {
+          if (ans && ans.id !== undefined) {
+            const id = String(ans.id);
+            const val =
+              typeof ans.value === 'number'
+                ? ans.value
+                : typeof ans.value === 'string' && !Number.isNaN(Number(ans.value))
+                  ? Number(ans.value)
+                  : null;
+            const result = ans.result ?? null;
+            if (!map[id]) map[id] = [];
+            map[id].push({ submitted_at: sub.submitted_at, value: val, result, user_id: sub.user_id });
+          }
+        });
+      }
+    });
+    Object.keys(map).forEach((k) =>
+      map[k].sort(
+        (a, b) =>
+          new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime()
+      )
+    );
+    return map;
+  }, [submissionsData]);
+
   const deleteSubmissionMutation = useMutation({
     mutationFn: (id: number) => submissionsApi.delete(id),
     onSuccess: () => {
@@ -464,14 +514,6 @@ const ContentPanel: React.FC<ContentPanelProps> = ({
         new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime()
     );
 
-    const answersToRecord = (answers: any[] = []) =>
-      answers.reduce<Record<string, any>>((acc, curr) => {
-        if (curr && curr.id !== undefined) {
-          acc[String(curr.id)] = curr.value ?? curr;
-        }
-        return acc;
-      }, {});
-
     const getResultMeta = (answers: any[]): { label: 'Fail' | 'Warning' | 'Pass'; color: string } => {
       const results = (answers || [])
         .map((a) => (a?.result ? String(a.result).toLowerCase() : null))
@@ -602,12 +644,269 @@ const ContentPanel: React.FC<ContentPanelProps> = ({
                       : {}
                   }
                   onFormAnswerChange={() => {}}
+                  chartHistories={chartHistories}
+                  onChartRequest={(fieldId, label) => {
+                    const history =
+                      chartHistories?.[fieldId] ||
+                      chartHistories?.[fieldId.toString()] ||
+                      [];
+                    setChartField({ id: fieldId, label, history });
+                  }}
                 />
               </Box>
             )}
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setViewSubmission(null)}>Close</Button>
+          </DialogActions>
+        </Dialog>
+        <Dialog
+          open={!!chartField}
+          onClose={() => setChartField(null)}
+          maxWidth={chartFullScreen ? 'xl' : 'sm'}
+          fullWidth
+          fullScreen={chartFullScreen}
+        >
+          <DialogTitle>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>{chartField ? `History for ${chartField.label}` : 'History'}</span>
+              <Tooltip title={chartFullScreen ? 'Restore' : 'Maximize'}>
+                <IconButton size="small" onClick={() => setChartFullScreen((v) => !v)}>
+                  {chartFullScreen ? <CloseFullscreenIcon fontSize="small" /> : <OpenInFullIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </DialogTitle>
+          <DialogContent dividers>
+            <Tabs
+              value={chartTab}
+              onChange={(_, v) => setChartTab(v)}
+              sx={{ mb: 2 }}
+            >
+              <Tab label="Table" value="table" />
+              <Tab label="Graph" value="graph" />
+            </Tabs>
+
+            {chartField && chartField.history.length === 0 && (
+              <Typography variant="body2" color="text.secondary">
+                No data.
+              </Typography>
+            )}
+
+            {chartField && chartField.history.length > 0 && chartTab === 'table' && (
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Date / Time</TableCell>
+                    <TableCell>Value</TableCell>
+                    <TableCell>Result</TableCell>
+                    <TableCell>User</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {chartField.history.map((h, idx) => {
+                    const result = h.result ? String(h.result).toLowerCase() : null;
+                    const color =
+                      result === 'fail'
+                        ? 'error.main'
+                        : result === 'warning'
+                          ? 'warning.main'
+                          : result === 'pass'
+                            ? 'success.main'
+                            : undefined;
+                    const label =
+                      result === 'fail'
+                        ? 'Fail'
+                        : result === 'warning'
+                          ? 'Warning'
+                          : result === 'pass'
+                            ? 'Pass'
+                            : '';
+                    return (
+                      <TableRow key={`${chartField.id}-${idx}`}>
+                        <TableCell>{new Date(h.submitted_at).toLocaleString()}</TableCell>
+                        <TableCell>{h.value ?? '—'}</TableCell>
+                        <TableCell sx={{ color, fontWeight: 600 }}>{label}</TableCell>
+                        <TableCell>{h.user_id ?? '—'}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+
+            {chartField && chartField.history.length > 0 && chartTab === 'graph' && (() => {
+              const points = chartField.history
+                .map((h) => ({
+                  ts: new Date(h.submitted_at).getTime(),
+                  submitted_at: h.submitted_at,
+                  user_id: h.user_id,
+                  value: typeof h.value === 'number' ? h.value : null,
+                  result: h.result ? String(h.result).toLowerCase() : null,
+                }))
+                .filter((p) => p.value !== null) as {
+                  ts: number;
+                  submitted_at: string;
+                  user_id?: string;
+                  value: number;
+                  result: string | null;
+                }[];
+
+              if (points.length === 0) {
+                return (
+                  <Typography variant="body2" color="text.secondary">
+                    No numeric data to plot.
+                  </Typography>
+                );
+              }
+
+              const isFull = chartFullScreen;
+              const width = isFull ? 1200 : 520;
+              const height = isFull ? 520 : 260;
+              const padding = isFull ? 48 : 40;
+              const minX = points[0].ts;
+              const maxX = points[points.length - 1].ts || points[0].ts + 1;
+              const minY = Math.min(...points.map((p) => p.value));
+              const maxY = Math.max(...points.map((p) => p.value));
+              const yRange = maxY === minY ? 1 : maxY - minY;
+
+              const scaleX = (ts: number) =>
+                padding +
+                ((ts - minX) / (maxX - minX || 1)) * (width - padding * 2);
+              const scaleY = (v: number) =>
+                height - padding - ((v - minY) / yRange) * (height - padding * 2);
+
+              const polyline = points.map((p) => `${scaleX(p.ts)},${scaleY(p.value)}`).join(' ');
+
+              const colorForResult = (r: string | null | undefined) =>
+                r === 'fail'
+                  ? '#d32f2f'
+                  : r === 'warning'
+                    ? '#ed6c02'
+                    : r === 'pass'
+                      ? '#2e7d32'
+                      : '#000';
+
+              return (
+                <Box sx={{ overflowX: 'auto', position: 'relative' }}>
+                  <svg
+                    width="100%"
+                    height={height}
+                    viewBox={`0 0 ${width} ${height}`}
+                    role="img"
+                    aria-label="Submission chart"
+                    preserveAspectRatio="xMinYMin meet"
+                    onMouseLeave={() => setChartHover(null)}
+                  >
+                    {/* axes */}
+                    <line
+                      x1={padding}
+                      y1={height - padding}
+                      x2={width - padding}
+                      y2={height - padding}
+                      stroke="#ccc"
+                    />
+                    <line
+                      x1={padding}
+                      y1={padding}
+                      x2={padding}
+                      y2={height - padding}
+                      stroke="#ccc"
+                    />
+                    {/* polyline */}
+                    <polyline
+                      fill="none"
+                      stroke="#1976d2"
+                      strokeWidth={2}
+                      points={polyline}
+                    />
+                    {/* points with tooltips */}
+                    {points.map((p, idx) => (
+                      <circle
+                        key={idx}
+                        cx={scaleX(p.ts)}
+                        cy={scaleY(p.value)}
+                        r={5}
+                        fill={colorForResult(p.result)}
+                        stroke="#fff"
+                        strokeWidth={1}
+                        onMouseEnter={(e) => {
+                          setChartHover({
+                            x: e.clientX + 12,
+                            y: e.clientY + 12,
+                            submitted_at: p.submitted_at,
+                            value: p.value,
+                            result: p.result,
+                            user_id: p.user_id,
+                          });
+                        }}
+                        onMouseMove={(e) => {
+                          setChartHover((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  x: e.clientX + 12,
+                                  y: e.clientY + 12,
+                                }
+                              : null
+                          );
+                        }}
+                        onClick={(e) => {
+                          setChartHover({
+                            x: e.clientX + 12,
+                            y: e.clientY + 12,
+                            submitted_at: p.submitted_at,
+                            value: p.value,
+                            result: p.result,
+                            user_id: p.user_id,
+                          });
+                        }}
+                      />
+                    ))}
+                    {/* y labels */}
+                    <text x={8} y={padding} fontSize="10" fill="#666">
+                      {maxY.toFixed(2)}
+                    </text>
+                    <text x={8} y={height - padding} fontSize="10" fill="#666">
+                      {minY.toFixed(2)}
+                    </text>
+                  </svg>
+                  {chartHover && (
+                    <Box
+                      sx={{
+                        position: 'fixed',
+                        top: chartHover.y,
+                        left: chartHover.x,
+                        bgcolor: 'background.paper',
+                        boxShadow: 3,
+                        borderRadius: 1,
+                        p: 1,
+                        minWidth: 200,
+                        zIndex: 2000,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>
+                        {new Date(chartHover.submitted_at).toLocaleString()}
+                      </Typography>
+                      <Typography variant="caption" sx={{ display: 'block' }}>
+                        Value: {chartHover.value}
+                      </Typography>
+                      <Typography variant="caption" sx={{ display: 'block' }}>
+                        Result: {chartHover.result || 'n/a'}
+                      </Typography>
+                      <Typography variant="caption" sx={{ display: 'block' }}>
+                        User: {chartHover.user_id || '—'}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              );
+            })()}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setChartField(null)}>Close</Button>
           </DialogActions>
         </Dialog>
       </Box>
