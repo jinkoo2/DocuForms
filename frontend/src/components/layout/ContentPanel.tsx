@@ -25,6 +25,7 @@ import {
   DialogActions,
   IconButton,
   Tooltip,
+  Checkbox,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -390,6 +391,18 @@ const ContentPanel: React.FC<ContentPanelProps> = ({
     },
   });
 
+  const updateReferenceMutation = useMutation({
+    mutationFn: ({ id, is_reference }: { id: number; is_reference: boolean }) =>
+      submissionsApi.updateReference(id, is_reference),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['submissions', documentId] });
+    },
+  });
+
+  const handleReferenceChange = (submissionId: number, checked: boolean) => {
+    updateReferenceMutation.mutate({ id: submissionId, is_reference: checked });
+  };
+
   const handleDeleteSubmission = (id: number) => {
     if (!documentId) return;
     const confirmed = window.confirm('Delete this submission?');
@@ -447,6 +460,7 @@ const ContentPanel: React.FC<ContentPanelProps> = ({
           formAnswers={formAnswers}
           onFormAnswerChange={onFormAnswerChange}
           onRequiredFieldsChange={setRequiredFields}
+          documentId={documentId}
         />
         {submitResult && (
           <Box sx={{ mt: 2 }}>
@@ -531,6 +545,7 @@ const ContentPanel: React.FC<ContentPanelProps> = ({
             <TableCell>User</TableCell>
             <TableCell>Date / Time</TableCell>
             <TableCell>Result</TableCell>
+            <TableCell>Reference</TableCell>
             <TableCell>Commands</TableCell>
           </TableRow>
         </TableHead>
@@ -548,6 +563,13 @@ const ContentPanel: React.FC<ContentPanelProps> = ({
                   </TableCell>
                 );
               })()}
+              <TableCell>
+                <Checkbox
+                  checked={sub.is_reference || false}
+                  onChange={(e) => handleReferenceChange(sub.id, e.target.checked)}
+                  size="small"
+                />
+              </TableCell>
               <TableCell>
                 <Stack direction="row" spacing={1}>
                   <Tooltip title="View">
@@ -652,6 +674,7 @@ const ContentPanel: React.FC<ContentPanelProps> = ({
                       [];
                     setChartField({ id: fieldId, label, history });
                   }}
+                  documentId={documentId}
                 />
               </Box>
             )}

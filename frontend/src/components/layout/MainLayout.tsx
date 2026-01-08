@@ -108,10 +108,12 @@ const MainLayout: React.FC = () => {
     login();
   }, [isLoading, isAuthenticated, login]);
 
-  // Auto-enable edit mode for admins (run before any early returns)
+  // Auto-enable edit mode for admins only on initial load
+  const hasInitializedEditMode = React.useRef(false);
   useEffect(() => {
-    if (isAuthenticated && isAdmin) {
+    if (isAuthenticated && isAdmin && !hasInitializedEditMode.current) {
       setIsEditMode(true);
+      hasInitializedEditMode.current = true;
     }
   }, [isAuthenticated, isAdmin]);
 

@@ -9,6 +9,7 @@ interface TextInputProps {
   minRows?: number;
   value?: string;
   onChange?: (value: string) => void;
+  width?: string | number; // Width of the input (e.g., "100px", "50%", or number for pixels)
 }
 
 const TextInput: React.FC<TextInputProps> = ({
@@ -19,6 +20,7 @@ const TextInput: React.FC<TextInputProps> = ({
   minRows,
   value: controlledValue,
   onChange,
+  width,
 }) => {
   const [internalValue, setInternalValue] = useState('');
   const labelToUse = label ?? id;
@@ -33,6 +35,13 @@ const TextInput: React.FC<TextInputProps> = ({
     onChange?.(newValue);
   };
 
+  // Convert width to CSS value
+  const widthStyle = width !== undefined 
+    ? typeof width === 'number' 
+      ? `${width}px` 
+      : width
+    : undefined;
+
   return (
     <Box sx={{ mb: 2 }}>
       <TextField
@@ -44,8 +53,9 @@ const TextInput: React.FC<TextInputProps> = ({
         required={required}
         multiline={multiline}
         minRows={minRows}
-        fullWidth
+        fullWidth={width === undefined}
         variant="outlined"
+        sx={widthStyle ? { width: widthStyle } : undefined}
       />
     </Box>
   );

@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey, JSON, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Text, ForeignKey, JSON, DateTime, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
@@ -50,6 +50,7 @@ class FormSubmission(Base):
     user_id = Column(String, nullable=False)  # From Keycloak
     answers = Column(JSON, nullable=False)  # Store form answers as JSON
     submitted_at = Column(DateTime, default=datetime.utcnow)
+    is_reference = Column(Boolean, default=False, nullable=False)
 
     # Relationships
     document = relationship("Document", back_populates="submissions")

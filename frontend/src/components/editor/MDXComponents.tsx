@@ -7,6 +7,7 @@ import MultipleChoice from '../forms/MultipleChoice';
 import DateInput from '../forms/DateInput';
 import TimeInput from '../forms/TimeInput';
 import Calculate from '../forms/Calculate';
+import DifferenceFromReference from '../forms/DifferenceFromReference';
 
 /**
  * MDX Component Registry
@@ -21,6 +22,7 @@ export const mdxComponents = {
   DateInput,
   TimeInput,
   Calculate,
+  DifferenceFromReference,
   // Standard HTML elements
   h1: (props: any) => <h1 {...props} />,
   h2: (props: any) => <h2 {...props} />,

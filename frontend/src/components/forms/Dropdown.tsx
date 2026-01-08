@@ -18,6 +18,7 @@ interface DropdownProps {
   default?: string;
   value?: string;
   onChange?: (value: string) => void;
+  width?: string | number; // Width of the input (e.g., "100px", "50%", or number for pixels)
 }
 
 const Dropdown: React.FC<DropdownProps> = ({
@@ -29,6 +30,7 @@ const Dropdown: React.FC<DropdownProps> = ({
   default: defaultValueProp,
   value: controlledValue,
   onChange,
+  width,
 }) => {
   const [internalValue, setInternalValue] = useState(defaultValueProp ?? '');
   const [status, setStatus] = useState<'pass' | 'fail' | null>(null);
@@ -87,9 +89,22 @@ const Dropdown: React.FC<DropdownProps> = ({
     return <Chip label={status} color={color} size="small" variant="outlined" />;
   };
 
+  // Convert width to CSS value
+  const widthStyle = width !== undefined 
+    ? typeof width === 'number' 
+      ? `${width}px` 
+      : width
+    : undefined;
+
   return (
     <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-      <FormControl fullWidth error={isErrorState || isFailState} sx={{ flex: 1 }}>
+      <FormControl 
+        fullWidth={width === undefined} 
+        error={isErrorState || isFailState} 
+        sx={{ 
+          ...(width !== undefined ? { width: widthStyle, flex: 'none' } : { flex: 1 })
+        }}
+      >
         <InputLabel color={isErrorState || isFailState ? 'error' : 'primary'}>{labelToUse}</InputLabel>
         <Select
           id={id}

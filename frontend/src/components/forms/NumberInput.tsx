@@ -25,6 +25,7 @@ interface NumberInputProps {
   onChange?: (value: NumberValue) => void;
   chartHistory?: { submitted_at: string; value: number | null; result?: string | null }[];
   onChartRequest?: (fieldId: string, label: string) => void;
+  width?: string | number; // Width of the input (e.g., "100px", "50%", or number for pixels)
 }
 
 const NumberInput: React.FC<NumberInputProps> = ({
@@ -38,6 +39,7 @@ const NumberInput: React.FC<NumberInputProps> = ({
   onChange,
   chartHistory,
   onChartRequest,
+  width,
 }) => {
   const [internalValue, setInternalValue] = useState<number | ''>(
     defaultValueProp ?? ''
@@ -177,10 +179,19 @@ const NumberInput: React.FC<NumberInputProps> = ({
     return <Chip label={status} color={color} size="small" variant="outlined" />;
   };
 
+  // Convert width to CSS value
+  const widthStyle = width !== undefined 
+    ? typeof width === 'number' 
+      ? `${width}px` 
+      : width
+    : undefined;
+
   return (
     <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
       <TextField
-        sx={{ flex: 1 }}
+        sx={{ 
+          ...(width !== undefined ? { width: widthStyle, flex: 'none' } : { flex: 1 })
+        }}
         id={id}
         name={id}
         label={labelToUse}
@@ -190,7 +201,7 @@ const NumberInput: React.FC<NumberInputProps> = ({
         required={required}
         error={isErrorState}
         color={isErrorState ? 'error' : getColor()}
-        fullWidth
+        fullWidth={width === undefined}
         variant="outlined"
       />
       {getStatusChip()}

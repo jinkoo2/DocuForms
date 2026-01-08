@@ -57,6 +57,8 @@ export const submissionsApi = {
   create: (data: { document_id: number; answers: ControlAnswer[] }) =>
     api.post('/api/submissions', data),
   delete: (id: number) => api.delete(`/api/submissions/${id}`),
+  updateReference: (id: number, is_reference: boolean) =>
+    api.patch(`/api/submissions/${id}/reference?is_reference=${is_reference}`),
 };
 
 // Users API

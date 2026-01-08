@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any
 from app.models.database import FormSubmission, Document, get_db
@@ -166,6 +166,7 @@ def create_submission(
         document_id=submission.document_id,
         user_id=current_user["id"],
         answers=normalized_answers,
+        is_reference=False,
     )
     try:
         db.add(db_submission)
@@ -185,4 +186,47 @@ def create_submission(
         )
         raise
     return db_submission
+
+
+@router.patch("/{submission_id}/reference", response_model=SubmissionResponse)
+def update_submission_reference(
+    submission_id: int,
+    is_reference: bool = Query(..., description="Whether this submission should be marked as reference"),
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Update the reference status of a submission. Only one submission per document can be a reference."""
+    submission = (
+        db.query(FormSubmission).filter(FormSubmission.id == submission_id).first()
+    )
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    # Non-admins can only update their own submissions
+    if (
+        "Admins" not in current_user.get("groups", [])
+        and submission.user_id != current_user["id"]
+    ):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # If setting this submission as reference, unset all other references for this document
+    if is_reference:
+        db.query(FormSubmission).filter(
+            FormSubmission.document_id == submission.document_id,
+            FormSubmission.id != submission_id,
+        ).update({"is_reference": False})
+
+    submission.is_reference = is_reference
+    try:
+        db.commit()
+        db.refresh(submission)
+        submission.answers = _normalize_answers(submission.answers)
+        return submission
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to update reference status for submission_id=%s",
+            submission_id,
+        )
+        raise
 

@@ -14,6 +14,7 @@ interface FormRendererProps {
     { submitted_at: string; value: number | null; result?: string | null }[]
   >;
   onChartRequest?: (fieldId: string, label: string) => void;
+  documentId?: number | null;
 }
 
 /**
@@ -129,6 +130,7 @@ const FormRenderer: React.FC<FormRendererProps> = ({
   onRequiredFieldsChange,
   chartHistories,
   onChartRequest,
+  documentId,
 }) => {
   const latestAnswersRef = React.useRef<Record<string, any>>(formAnswers);
 
@@ -136,121 +138,122 @@ const FormRenderer: React.FC<FormRendererProps> = ({
     latestAnswersRef.current = formAnswers;
   }, [formAnswers]);
 
-  const handleFieldChange = (fieldId: string, value: any) => {
+  const handleFieldChange = React.useCallback((fieldId: string, value: any) => {
     const next = { ...latestAnswersRef.current, [fieldId]: value };
     latestAnswersRef.current = next;
     onFormAnswerChange(next);
-  };
+  }, [onFormAnswerChange]);
 
-  const parts: React.ReactNode[] = [];
-  const lines = content.split('\n');
-  let currentMarkdown = '';
-  let blockIndex = 0;
-  const requiredKeys: string[] = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    let line = lines[i];
-
-    // Support multi-line component tags by buffering until we hit a ">"
-    if (line.trim().startsWith('<') && !line.includes('>')) {
-      let buffered = line;
-      while (i + 1 < lines.length && !lines[i].includes('>')) {
-        i += 1;
-        buffered += '\n' + lines[i];
-        if (lines[i].includes('>')) break;
-      }
-      line = buffered;
-    }
+  // Extract required keys from content
+  const requiredKeys = React.useMemo(() => {
+    const keys: string[] = [];
+    const componentPattern = /<(\w+)([\s\S]*?)(?:\s*\/>|>)/g;
+    let match;
     
-    // Check if line contains MDX component (self-closing or opening tag)
-    const selfClosingMatch = line.match(/<(\w+)([\s\S]*?)\s*\/>/);
-    const openingMatch = line.match(/<(\w+)([\s\S]*?)>/);
-    
-    if (selfClosingMatch || openingMatch) {
-      const match = selfClosingMatch || openingMatch;
-      if (!match) continue;
-
-      // Render accumulated markdown first
-      if (currentMarkdown.trim()) {
-        parts.push(
-          <ReactMarkdown key={`md-${blockIndex}`} remarkPlugins={[remarkGfm]}>
-            {currentMarkdown.trim()}
-          </ReactMarkdown>
-        );
-        currentMarkdown = '';
-        blockIndex += 1;
-      }
-
+    while ((match = componentPattern.exec(content)) !== null) {
       const [, componentName, propsString] = match;
       const Component = (mdxComponents as any)[componentName];
+      if (Component) {
+        const props = parseProps(propsString || '');
+        const fieldKey = props.id;
+        if (fieldKey && props.required) {
+          keys.push(fieldKey);
+        }
+      }
+    }
+    
+    return keys;
+  }, [content]);
 
+  // Process content to replace MDX components with React components
+  const processedContent = React.useMemo(() => {
+    const componentPattern = /<(\w+)([\s\S]*?)(?:\s*\/>|>)/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+    let componentIndex = 0;
+
+    while ((match = componentPattern.exec(content)) !== null) {
+      // Add text before component
+      if (match.index > lastIndex) {
+        const textBefore = content.substring(lastIndex, match.index);
+        if (textBefore.trim()) {
+          parts.push(
+            <ReactMarkdown key={`text-${componentIndex}`} remarkPlugins={[remarkGfm]}>
+              {textBefore}
+            </ReactMarkdown>
+          );
+        }
+      }
+
+      // Process component
+      const [, componentName, propsString] = match;
+      const Component = (mdxComponents as any)[componentName];
+      
       if (Component) {
         const props = parseProps(propsString || '');
         const fieldKey = props.id;
 
-        if (!fieldKey) {
+        if (fieldKey) {
+          const label = props.label || fieldKey;
           parts.push(
-            <div key={`missing-id-${componentName}-${blockIndex}`} style={{ color: 'red' }}>
+            <Component
+              key={fieldKey}
+              {...props}
+              id={fieldKey}
+              label={label}
+              value={formAnswers[fieldKey]}
+              values={formAnswers}
+              fieldKey={fieldKey}
+              onChange={(value: any) => handleFieldChange(fieldKey, value)}
+              chartHistory={chartHistories ? chartHistories[fieldKey] : undefined}
+              onChartRequest={onChartRequest}
+              documentId={documentId}
+            />
+          );
+        } else {
+          parts.push(
+            <div key={`missing-${componentIndex}`} style={{ color: 'red', display: 'inline-block' }}>
               Missing required id for component: {componentName}
             </div>
           );
-          blockIndex += 1;
-          continue;
         }
-
-        const label = props.label || fieldKey;
-        if (props.required) {
-          requiredKeys.push(fieldKey);
-        }
-        parts.push(
-          <Component
-            key={`comp-${componentName}-${fieldKey}-${blockIndex}`}
-            {...props}
-            id={fieldKey}
-            label={label}
-            value={formAnswers[fieldKey]}
-            values={formAnswers}
-            fieldKey={fieldKey}
-            onChange={(value: any) => handleFieldChange(fieldKey, value)}
-            chartHistory={chartHistories ? chartHistories[fieldKey] : undefined}
-            onChartRequest={onChartRequest}
-          />
-        );
-        blockIndex += 1;
       } else {
-        // Unknown component, render as text
         parts.push(
-          <div key={`text-${blockIndex}`} style={{ color: 'red' }}>
+          <div key={`unknown-${componentIndex}`} style={{ color: 'red', display: 'inline-block' }}>
             Unknown component: {componentName}
           </div>
         );
-        blockIndex += 1;
       }
-    } else {
-      // Regular markdown line
-      currentMarkdown += line + '\n';
-    }
-  }
 
-  // Render remaining markdown
-  if (currentMarkdown.trim()) {
-    parts.push(
-      <ReactMarkdown key={`md-${blockIndex}`} remarkPlugins={[remarkGfm]}>
-        {currentMarkdown.trim()}
-      </ReactMarkdown>
-    );
-  }
+      lastIndex = match.index + match[0].length;
+      componentIndex++;
+    }
+
+    // Add remaining text
+    if (lastIndex < content.length) {
+      const textAfter = content.substring(lastIndex);
+      if (textAfter.trim()) {
+        parts.push(
+          <ReactMarkdown key="text-end" remarkPlugins={[remarkGfm]}>
+            {textAfter}
+          </ReactMarkdown>
+        );
+      }
+    }
+
+    return parts.length > 0 ? parts : null;
+  }, [content, formAnswers, chartHistories, onChartRequest, documentId, handleFieldChange]);
 
   React.useEffect(() => {
     if (onRequiredFieldsChange) {
       onRequiredFieldsChange(requiredKeys);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content, JSON.stringify(requiredKeys)]);
+  }, [requiredKeys, onRequiredFieldsChange]);
 
   return (
     <Box sx={{ p: 2 }}>
-      {parts.length > 0 ? parts : (
+      {processedContent || (
         <ReactMarkdown remarkPlugins={[remarkGfm]}>
           {content}
         </ReactMarkdown>

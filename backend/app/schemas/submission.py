@@ -42,6 +42,7 @@ class SubmissionResponse(SubmissionBase):
     id: int
     user_id: str
     submitted_at: datetime
+    is_reference: bool = False
 
     class Config:
         from_attributes = True

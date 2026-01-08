@@ -24,6 +24,7 @@ export interface FormSubmission {
   user_id: string;
   answers: ControlAnswer[];
   submitted_at: string;
+  is_reference?: boolean;
 }
 
 export interface User {
